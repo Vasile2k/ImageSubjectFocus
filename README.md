@@ -1,6 +1,7 @@
 # ImageSubjectFocus
 
 A little application meant to detect main subject of an image and add depth and focus fx on it.
+
 It's tested on Windows but it should run on Linux too.
 
 ## Prerequisities
@@ -19,7 +20,10 @@ Open the project in Visual Studion(2019 or newer) or build it with your favorite
 This should be obvious, but run the application you just built.
 
 ## License
+
 This thing is distributed under Apache 2.0. See [LICENSE](LICENSE).
+
+Gitignore file from [github/gitignore][4].
 
 ## Additional details
 
@@ -35,3 +39,4 @@ Everything done in this project is inspired by [Main subject detection via adapt
 [1]: https://github.com/Vasile2k
 [2]: https://github.com/StratulatStefan
 [3]: https://pdfs.semanticscholar.org/4af6/86dfabf7457a1e10111e270175402b39d574.pdf
+[4]: https://github.com/github/gitignore
