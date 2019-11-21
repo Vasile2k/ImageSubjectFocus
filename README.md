@@ -4,6 +4,8 @@ A little application meant to detect main subject of an image and add depth and 
 
 It's tested on Windows but it should run on Linux too.
 
+Only for x64. Why? Because why not...
+
 ## Prerequisities
 
  * Sometin' able to compile C++17
