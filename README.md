@@ -8,6 +8,7 @@ It's tested on Windows but it should run on Linux too.
 
  * Sometin' able to compile C++17
  * Visual Studio may help but it's not necessary
+ * [stb_image][5] and [stb_image_write][6] from [nothings/stb][7]
 
 ## Installation
 
@@ -40,3 +41,6 @@ Everything done in this project is inspired by [Main subject detection via adapt
 [2]: https://github.com/StratulatStefan
 [3]: https://pdfs.semanticscholar.org/4af6/86dfabf7457a1e10111e270175402b39d574.pdf
 [4]: https://github.com/github/gitignore
+[5]: https://github.com/nothings/stb/blob/master/stb_image.h
+[6]: https://github.com/nothings/stb/blob/master/stb_image_write.h
+[7]: https://github.com/nothings/stb
