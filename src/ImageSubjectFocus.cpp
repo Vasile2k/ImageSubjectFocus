@@ -1,4 +1,3 @@
-#include <iostream>
 #include "pch.h"
 #include <cstdint>
 
@@ -21,11 +20,16 @@ union doubleColor {
 doubleColor rgbToCielab(color in);
 color guessBackgroundColor(uint8_t* image, int w, int h);
 color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop);
+/////******/////
+double rgbToGrayScale(color in);
+double EachBlockLuminanceShit(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
+
 
 int main(){
 	
 	int x, y, channels;
-	uint8_t* image = stbi_load("test/test02.jpg", &x, &y, &channels, 0);
+	uint8_t* image = stbi_load("test/test03.jpg", &x, &y, &channels, 0);
+	
 
 	color background = guessBackgroundColor(image, x, y);
 	doubleColor backgroundCieColor = rgbToCielab(background);
@@ -35,33 +39,47 @@ int main(){
 	int mapHeight = y/4 - 1;
 	double* map1 = new double[mapWidth * mapHeight];
 	double* map2 = new double[mapWidth * mapHeight];
+	double* map3 = new double[mapWidth * mapHeight];////****////
 
 	for (int i = 0; i < x - 8; i += 4) {
 		for (int j = 0; j < y - 8; j += 4) {
 			color blockColor = averageBlockColor(image, x, y, i, i+8, j, j+8);
 			doubleColor blockCieColor = rgbToCielab(blockColor);
 
+
 			double f1 = abs(backgroundCieColor.ls - blockCieColor.ls);
 			double deltaA = blockCieColor.as - backgroundCieColor.as;
 			double deltaB = blockCieColor.bs - backgroundCieColor.bs;
 			double f2 = sqrt((deltaA * deltaA) + (deltaB * deltaB));
+			double f3 = EachBlockLuminanceShit(image, x, y, i, i + 8, j, j + 8); ////****/////
+
 			map1[j/4 * mapWidth + i/4] = f1;
 			map2[j/4 * mapWidth + i/4] = f2;
+			map3[j/4 * mapWidth + i/4] = f3; ////*****/////
+
 		}
 	}
 
 	double max1 = *std::max_element(map1, map1 + (mapWidth*mapHeight));
 	double max2 = *std::max_element(map2, map2 + (mapWidth*mapHeight));
+	double max3 = *std::max_element(map3, map3 + (mapWidth*mapHeight)); //////*****///////
 
 	uint8_t* charMap1 = new uint8_t[mapWidth * mapHeight];
 	uint8_t* charMap2 = new uint8_t[mapWidth * mapHeight];
+	uint8_t* charMap3 = new uint8_t[mapWidth * mapHeight]; ////******/////
+	
+
 	for (int i = 0; i < mapWidth * mapHeight; ++i) {
 		charMap1[i] = (uint8_t)round((map1[i] / max1) * UINT8_MAX);
 		charMap2[i] = (uint8_t)round((map2[i] / max2) * UINT8_MAX);
+		charMap3[i] = (uint8_t)round((map3[i] / max3) * UINT8_MAX); //////*******///////
+		
 	}
+	
 
-	stbi_write_png("temp/map3.png", mapWidth, mapHeight, 1, charMap1, 0);
-	stbi_write_png("temp/map4.png", mapWidth, mapHeight, 1, charMap2, 0);
+	stbi_write_png("temp/map4.png", mapWidth, mapHeight, 1, charMap1, 0);
+	stbi_write_png("temp/map5.png", mapWidth, mapHeight, 1, charMap2, 0);
+	stbi_write_png("temp/map6.png", mapWidth, mapHeight, 1, charMap3, 0);//////*******////////
 
 	stbi_image_free(image);
 	delete[] map1;
@@ -69,6 +87,8 @@ int main(){
 	std::cout << "The horse is in the house!" << std::endl;
 	return 0;
 }
+
+
 
 color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop) {
 
@@ -116,7 +136,7 @@ color doubleColorToColor(doubleColor in) {
 double linearizeColorComponent(double color) {
 	double col = color;
 
-	if (col > 0.04045) {
+	if (col <= 0.04045) {
 		col /= 12.92;
 	} else {
 		col = pow((col + 0.055)/1.055, 2.4);
@@ -157,4 +177,56 @@ doubleColor ciexyzToCielab(doubleColor in) {
 
 doubleColor rgbToCielab(color in) {
 	return ciexyzToCielab(rgbToCiexyz(linearizeRgb(colorToDoubleColor(in))));
+}
+
+
+
+
+
+
+
+
+
+
+//// ***** ////
+
+double rgbToGrayScale(color in) {
+	return 0.299 * in.r + 0.587 * in.g + 0.114 * in.b;
+}
+
+double EachBlockLuminanceShit(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop) {
+	double b = 0.7297;
+	double k = 0.037644;
+	double gamma = 2.2;
+	double mean = 0;
+	std::vector<double> grayscales;
+	for (int x = xStart; x < xStop; ++x) {
+		for (int y = yStart; y < yStop; ++y) {
+			int i = w*y + x;
+			double xg = rgbToGrayScale({ image[3 * i],image[3 * i + 1],image[3 * i + 2] });
+			grayscales.push_back(xg);
+			mean += std::pow((b + k * xg), gamma);
+		}
+	}
+	mean /= ((yStop - yStart) * (xStop - xStart));
+	double standarddev = 0;
+	for (int i = 0; i < (yStop - yStart) * (xStop - xStart); i++) {
+		double l = std::pow((b + k * grayscales.at(i)), gamma);
+		standarddev += pow((l - mean), 2);
+	}
+	standarddev /= ((yStop - yStart) * (xStop - xStart) - 2);
+	standarddev = sqrt(standarddev);
+	//printf("%f   %f\n", mean, standarddev);
+	
+
+	auto f = [](double disp,double mean) {
+		if (mean > 0) {
+			return disp/mean;
+		}
+		else {
+			return 0.0;
+		}
+	};
+
+	return f(standarddev, mean);
 }
