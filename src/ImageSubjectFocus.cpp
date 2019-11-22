@@ -20,16 +20,27 @@ union doubleColor {
 doubleColor rgbToCielab(color in);
 color guessBackgroundColor(uint8_t* image, int w, int h);
 color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop);
+
+
 /////******/////
 double rgbToGrayScale(color in);
 double EachBlockLuminanceShit(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
 
 
+//////-------//////
+uint8_t * RobertsEdgeFilter(uint8_t *image, int w, int h);
+uint8_t * RobertsEdgeFilters(uint8_t *image, int w, int h);
+double BlockEdgeStrength(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
+doubleColor BlockEdgeStrengths(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
+uint8_t *GrayScaled(uint8_t *image, int w, int h);
+
 int main(){
 	
 	int x, y, channels;
 	uint8_t* image = stbi_load("test/test03.jpg", &x, &y, &channels, 0);
-	
+
+	uint8_t * edged = RobertsEdgeFilter(image, x, y); /////// ------- /////// pe grayscale
+	// ignore it : uint8_t * edged = RobertsEdgeFilters(image, x, y); /////// ------- /////// pe rgb
 
 	color background = guessBackgroundColor(image, x, y);
 	doubleColor backgroundCieColor = rgbToCielab(background);
@@ -39,13 +50,14 @@ int main(){
 	int mapHeight = y/4 - 1;
 	double* map1 = new double[mapWidth * mapHeight];
 	double* map2 = new double[mapWidth * mapHeight];
-	double* map3 = new double[mapWidth * mapHeight];////****////
-
+	double* map3 = new double[mapWidth * mapHeight]; ////****////
+	double* map4 = new double[mapWidth * mapHeight]; /////----/////
+	// ignore it : double* map4 = new double[3*mapWidth * mapHeight]; ////-----//// pe rgb
+	
 	for (int i = 0; i < x - 8; i += 4) {
 		for (int j = 0; j < y - 8; j += 4) {
 			color blockColor = averageBlockColor(image, x, y, i, i+8, j, j+8);
 			doubleColor blockCieColor = rgbToCielab(blockColor);
-
 
 			double f1 = abs(backgroundCieColor.ls - blockCieColor.ls);
 			double deltaA = blockCieColor.as - backgroundCieColor.as;
@@ -56,23 +68,33 @@ int main(){
 			map1[j/4 * mapWidth + i/4] = f1;
 			map2[j/4 * mapWidth + i/4] = f2;
 			map3[j/4 * mapWidth + i/4] = f3; ////*****/////
+			map4[j/4 * mapWidth + i/4] = BlockEdgeStrength(edged, x, y, i, i + 8, j, j + 8); ////----////
 
+			
+			/*ignore it : 
+			doubleColor edgestrength = BlockEdgeStrengths(edged, x, y, i, i + 8, j, j + 8); ////----////
+			map4[3 * (j / 4 * mapWidth + i / 4)] = (uint8_t)edgestrength.r;
+			map4[3 * (j / 4 * mapWidth + i / 4) + 1] = (uint8_t)edgestrength.g;
+			map4[3 * (j / 4 * mapWidth + i / 4) + 2] = (uint8_t)edgestrength.b;*/
+			
 		}
 	}
 
 	double max1 = *std::max_element(map1, map1 + (mapWidth*mapHeight));
 	double max2 = *std::max_element(map2, map2 + (mapWidth*mapHeight));
 	double max3 = *std::max_element(map3, map3 + (mapWidth*mapHeight)); //////*****///////
+	double max4 = *std::max_element(map4, map4 + (mapWidth*mapHeight)); /////------///////
 
 	uint8_t* charMap1 = new uint8_t[mapWidth * mapHeight];
 	uint8_t* charMap2 = new uint8_t[mapWidth * mapHeight];
 	uint8_t* charMap3 = new uint8_t[mapWidth * mapHeight]; ////******/////
-	
+	uint8_t* charMap4 = new uint8_t[mapWidth * mapHeight]; ////******/////
 
 	for (int i = 0; i < mapWidth * mapHeight; ++i) {
 		charMap1[i] = (uint8_t)round((map1[i] / max1) * UINT8_MAX);
 		charMap2[i] = (uint8_t)round((map2[i] / max2) * UINT8_MAX);
 		charMap3[i] = (uint8_t)round((map3[i] / max3) * UINT8_MAX); //////*******///////
+		charMap4[i] = (uint8_t)round((map4[i] / max4) * UINT8_MAX); /////------/////
 		
 	}
 	
@@ -80,6 +102,9 @@ int main(){
 	stbi_write_png("temp/map4.png", mapWidth, mapHeight, 1, charMap1, 0);
 	stbi_write_png("temp/map5.png", mapWidth, mapHeight, 1, charMap2, 0);
 	stbi_write_png("temp/map6.png", mapWidth, mapHeight, 1, charMap3, 0);//////*******////////
+	stbi_write_png("temp/map7.png", mapWidth,mapHeight, 1, charMap4, 0);//////------///////
+	//ignore it : stbi_write_png("temp/map10.png", x, y, 1, edged, 0);
+
 
 	stbi_image_free(image);
 	delete[] map1;
@@ -180,14 +205,6 @@ doubleColor rgbToCielab(color in) {
 }
 
 
-
-
-
-
-
-
-
-
 //// ***** ////
 
 double rgbToGrayScale(color in) {
@@ -216,7 +233,6 @@ double EachBlockLuminanceShit(uint8_t *image, int w, int h, int xStart, int xSto
 	}
 	standarddev /= ((yStop - yStart) * (xStop - xStart) - 2);
 	standarddev = sqrt(standarddev);
-	//printf("%f   %f\n", mean, standarddev);
 	
 
 	auto f = [](double disp,double mean) {
@@ -229,4 +245,127 @@ double EachBlockLuminanceShit(uint8_t *image, int w, int h, int xStart, int xSto
 	};
 
 	return f(standarddev, mean);
+}
+
+
+//// ------- //////
+
+uint8_t *GrayScaled(uint8_t *image, int w, int h) {
+	uint8_t *result = new uint8_t[w*h];
+	for (int y = 0; y < h; y++) {
+		for (int x = 0; x < w; x++) {
+			int i = y*w + x;
+			result[y*w + x] = (uint8_t)rgbToGrayScale({ image[3 * i],image[3 * i + 1],image[3 * i + 2] });
+		}
+	}
+	return result;
+}
+
+uint8_t * RobertsEdgeFilter(uint8_t *image, int w, int h) {
+	uint8_t *result = new uint8_t[w * h];
+	uint8_t *grayscaled = GrayScaled(image, w, h);
+	int8_t gx;
+	int8_t gy;
+	uint8_t right;
+	uint8_t bottom;
+	uint8_t rightbottom;
+	for (int x = 0; x < w; x++) {
+		for (int y = 0; y < h; y++) {
+			if (x == w - 1) {
+				rightbottom = 0;
+				right = 0;
+			}
+			if (y == h - 1) {
+				rightbottom = 0;
+				bottom = 0;
+			}
+			else {
+				right = grayscaled[y*w + x + 1];
+				bottom = grayscaled[(y + 1)*w + x];
+				rightbottom = grayscaled[(y + 1)*w + x + 1];
+
+			}
+			gx = rightbottom - grayscaled[y*w + x];
+			gy = bottom - right;
+
+			result[y*w + x] = (uint8_t)sqrt(pow(gx, 2) + pow(gy, 2));
+		}
+	}
+
+	return result;
+}
+
+double BlockEdgeStrength(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop) {
+	int  media = 0;
+	for (int y = yStart; y < yStop; ++y) {
+		for (int x = xStart; x < xStop; ++x) {
+			media += image[y*w + x];
+		}
+	}
+	
+	auto f = [](int media) {
+		return media / pow(8, 2);
+	};
+
+	return f(media);
+}
+
+
+
+//// ignore it!
+
+doubleColor BlockEdgeStrengths(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop) {
+	int rr = 0, gg = 0, bb = 0;
+	for (int y = yStart; y < yStop; ++y) {
+		for (int x = xStart; x < xStop; ++x) {
+			int i = w*y + x;
+			rr += image[3 * i];
+			gg += image[3 * i + 1];
+			bb += image[3 * i + 2];
+		}
+	}
+
+
+	auto f = [](int media) {
+		return media / pow(8, 2);
+	};
+
+	return{ f(rr),f(gg),f(bb) };
+}
+
+uint8_t * RobertsEdgeFilters(uint8_t *image, int w, int h) {
+	uint8_t *result = new uint8_t[3 * w * h];
+	color gx;
+	color gy;
+	color right;
+	color bottom;
+	color rightbottom;
+	for (int x = 0; x < w; x++) {
+		for (int y = 0; y < h; y++) {
+			if (x == w - 1) {
+				rightbottom = color{ 0,0,0 };
+				right = color{ 0,0,0 };
+			}
+			if (y == h - 1) {
+				rightbottom = color{ 0,0,0 };
+				bottom = color{ 0,0,0 };
+			}
+			else {
+				right = color{ image[3 * (y*w + x + 1)] ,image[3 * (y*w + x + 1) + 1],image[3 * (y*w + x + 1) + 2] };
+				bottom = color{ image[3 * ((y + 1)*w + x)] ,image[3 * ((y + 1)*w + x) + 1] ,image[3 * ((y + 1)*w + x) + 2] };
+				rightbottom = color{ image[3 * ((y + 1)*w + x + 1)] ,image[3 * ((y + 1)*w + x + 1) + 1] ,image[3 * ((y + 1)*w + x + 1) + 2] };
+
+			}
+
+			int i = y*w + x;
+			gx = color{ (uint8_t)abs(rightbottom.r - (int)image[3 * i]),(uint8_t)abs(rightbottom.g - (int)image[3 * i + 1]),(uint8_t)abs(rightbottom.b - (int)image[3 * i + 2]) };
+			gy = color{ (uint8_t)abs(bottom.r - right.r),(uint8_t)abs(bottom.g - right.g),(uint8_t)abs(bottom.b - right.b) };
+
+			result[3 * i] = (uint8_t)sqrt(pow(gx.r, 2) + pow(gy.r, 2));
+			result[3 * i + 1] = (uint8_t)sqrt(pow(gx.g, 2) + pow(gy.g, 2));
+			result[3 * i + 2] = (uint8_t)sqrt(pow(gx.b, 2) + pow(gy.b, 2));
+		}
+	}
+
+	return result;
 }
