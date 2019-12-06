@@ -1,5 +1,9 @@
 #include "pch.h"
+#include <math.h>
 #include <cstdint>
+
+#define M1 w
+#define M2 h
 
 struct color {
 	uint8_t r, g, b;
@@ -33,18 +37,23 @@ uint8_t * RobertsEdgeFilters(uint8_t *image, int w, int h);
 double BlockEdgeStrength(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
 doubleColor BlockEdgeStrengths(uint8_t *image, int w, int h, int xStart, int xStop, int yStart, int yStop);
 uint8_t *GrayScaled(uint8_t *image, int w, int h);
+////
+
+
+double CenterWeightCalc(int w, int h, int xStart, int yStart);
+std::vector<uint8_t *> MapsCenterWeight(int w, int h, std::vector<uint8_t*> maps, uint8_t *centerweightmap);
+std::vector<uint8_t *> MapsCenterWeightNormalized(uint8_t *image, int w, int h, std::vector<uint8_t*> maps);
+
 
 int main(){
 	
 	int x, y, channels;
 	uint8_t* image = stbi_load("test/test03.jpg", &x, &y, &channels, 0);
-
 	uint8_t * edged = RobertsEdgeFilter(image, x, y); /////// ------- /////// pe grayscale
 	// ignore it : uint8_t * edged = RobertsEdgeFilters(image, x, y); /////// ------- /////// pe rgb
 
 	color background = guessBackgroundColor(image, x, y);
 	doubleColor backgroundCieColor = rgbToCielab(background);
-	
 
 	int mapWidth = x/4 - 1;
 	int mapHeight = y/4 - 1;
@@ -53,6 +62,7 @@ int main(){
 	double* map3 = new double[mapWidth * mapHeight]; ////****////
 	double* map4 = new double[mapWidth * mapHeight]; /////----/////
 	// ignore it : double* map4 = new double[3*mapWidth * mapHeight]; ////-----//// pe rgb
+	double* centerWeightMap = new double[mapWidth * mapHeight];
 	
 	for (int i = 0; i < x - 8; i += 4) {
 		for (int j = 0; j < y - 8; j += 4) {
@@ -64,11 +74,13 @@ int main(){
 			double deltaB = blockCieColor.bs - backgroundCieColor.bs;
 			double f2 = sqrt((deltaA * deltaA) + (deltaB * deltaB));
 			double f3 = EachBlockLuminanceShit(image, x, y, i, i + 8, j, j + 8); ////****/////
+			
 
 			map1[j/4 * mapWidth + i/4] = f1;
 			map2[j/4 * mapWidth + i/4] = f2;
 			map3[j/4 * mapWidth + i/4] = f3; ////*****/////
 			map4[j/4 * mapWidth + i/4] = BlockEdgeStrength(edged, x, y, i, i + 8, j, j + 8); ////----////
+			centerWeightMap[j/4 * mapWidth + i/4] = CenterWeightCalc(x,y,i, j);
 
 			
 			/*ignore it : 
@@ -84,26 +96,55 @@ int main(){
 	double max2 = *std::max_element(map2, map2 + (mapWidth*mapHeight));
 	double max3 = *std::max_element(map3, map3 + (mapWidth*mapHeight)); //////*****///////
 	double max4 = *std::max_element(map4, map4 + (mapWidth*mapHeight)); /////------///////
+	double centermax = *std::max_element(centerWeightMap, centerWeightMap + (mapWidth * mapHeight));
 
 	uint8_t* charMap1 = new uint8_t[mapWidth * mapHeight];
 	uint8_t* charMap2 = new uint8_t[mapWidth * mapHeight];
 	uint8_t* charMap3 = new uint8_t[mapWidth * mapHeight]; ////******/////
 	uint8_t* charMap4 = new uint8_t[mapWidth * mapHeight]; ////******/////
+	uint8_t* centerweightmap = new uint8_t[mapWidth * mapHeight];
 
 	for (int i = 0; i < mapWidth * mapHeight; ++i) {
 		charMap1[i] = (uint8_t)round((map1[i] / max1) * UINT8_MAX);
 		charMap2[i] = (uint8_t)round((map2[i] / max2) * UINT8_MAX);
 		charMap3[i] = (uint8_t)round((map3[i] / max3) * UINT8_MAX); //////*******///////
 		charMap4[i] = (uint8_t)round((map4[i] / max4) * UINT8_MAX); /////------/////
-		
+		centerweightmap[i] = (uint8_t)round((centerWeightMap[i] / centermax) * UINT8_MAX);
 	}
-	
+	std::vector<uint8_t*> maps = {
+		charMap1,
+		charMap2,
+		charMap3,
+		charMap4
+	};
 
+	std::vector<uint8_t*> mapscw = MapsCenterWeight(mapWidth,mapHeight,maps,centerweightmap);
+	std::vector<uint8_t*> mapscwn = MapsCenterWeightNormalized(image, mapWidth, mapHeight, maps);
+	
 	stbi_write_png("temp/map4.png", mapWidth, mapHeight, 1, charMap1, 0);
 	stbi_write_png("temp/map5.png", mapWidth, mapHeight, 1, charMap2, 0);
 	stbi_write_png("temp/map6.png", mapWidth, mapHeight, 1, charMap3, 0);//////*******////////
 	stbi_write_png("temp/map7.png", mapWidth,mapHeight, 1, charMap4, 0);//////------///////
 	//ignore it : stbi_write_png("temp/map10.png", x, y, 1, edged, 0);
+	stbi_write_png("temp/centerwmap.png", mapWidth, mapHeight, 1, centerweightmap, 0);
+
+	stbi_write_png("temp/centermapweight/initial/map1.png",mapWidth,mapHeight,1,mapscw[0],0);
+	stbi_write_png("temp/centermapweight/initial/map2.png",mapWidth,mapHeight,1,mapscw[1],0);
+	stbi_write_png("temp/centermapweight/initial/map3.png",mapWidth,mapHeight,1,mapscw[2],0);
+	stbi_write_png("temp/centermapweight/initial/map4.png",mapWidth,mapHeight,1,mapscw[3],0);
+
+
+	stbi_write_png("temp/centermapweight/normalized/map1.png", mapWidth,mapHeight, 1, mapscwn[0], 0);
+	stbi_write_png("temp/centermapweight/normalized/map2.png", mapWidth,mapHeight, 1, mapscwn[1], 0);
+	stbi_write_png("temp/centermapweight/normalized/map3.png", mapWidth,mapHeight, 1, mapscwn[2], 0);
+	stbi_write_png("temp/centermapweight/normalized/map4.png", mapWidth,mapHeight, 1, mapscwn[3], 0);
+
+	//std::vector<uint8_t*> maps = {
+	//	charMap1,
+	//	charMap2,
+	//	charMap3,
+	//	charMap4
+	//};
 
 
 	stbi_image_free(image);
@@ -354,18 +395,94 @@ uint8_t * RobertsEdgeFilters(uint8_t *image, int w, int h) {
 				right = color{ image[3 * (y*w + x + 1)] ,image[3 * (y*w + x + 1) + 1],image[3 * (y*w + x + 1) + 2] };
 				bottom = color{ image[3 * ((y + 1)*w + x)] ,image[3 * ((y + 1)*w + x) + 1] ,image[3 * ((y + 1)*w + x) + 2] };
 				rightbottom = color{ image[3 * ((y + 1)*w + x + 1)] ,image[3 * ((y + 1)*w + x + 1) + 1] ,image[3 * ((y + 1)*w + x + 1) + 2] };
-
 			}
 
 			int i = y*w + x;
 			gx = color{ (uint8_t)abs(rightbottom.r - (int)image[3 * i]),(uint8_t)abs(rightbottom.g - (int)image[3 * i + 1]),(uint8_t)abs(rightbottom.b - (int)image[3 * i + 2]) };
 			gy = color{ (uint8_t)abs(bottom.r - right.r),(uint8_t)abs(bottom.g - right.g),(uint8_t)abs(bottom.b - right.b) };
-
 			result[3 * i] = (uint8_t)sqrt(pow(gx.r, 2) + pow(gy.r, 2));
 			result[3 * i + 1] = (uint8_t)sqrt(pow(gx.g, 2) + pow(gy.g, 2));
 			result[3 * i + 2] = (uint8_t)sqrt(pow(gx.b, 2) + pow(gy.b, 2));
 		}
 	}
-
 	return result;
 }
+
+
+
+
+
+
+//2131313213//////////////
+
+/*
+uint8_t * Saturation(const uint8_t & image,int w,int h) {
+	uint8_t *result = new uint8_t[w * h];
+}*/
+
+double CenterWeightCalc(int w,int h,int xStart, int yStart) {
+	int rc = M2 / 2;
+	int cc = M1 / 2;
+	return 1 - sqrt(pow(yStart - rc,2) + pow(xStart - cc,2)) / sqrt(pow(M1/2,2) + pow(M2/2,2));
+}
+
+
+std::vector<uint8_t *> MapsCenterWeight(int w,int h,std::vector<uint8_t*> maps,uint8_t *centerweightmap){
+	std::vector<uint8_t*> centered_maps;
+
+
+	for (std::vector<uint8_t*>::iterator it = maps.begin(); it != maps.end(); it++) {
+		uint8_t *aux = new uint8_t[w * h];
+		uint8_t *currentmap = *it;
+		for (int i = 0; i < w * h; i++) {
+			aux[i] = centerweightmap[i] + currentmap[i];
+		}
+		centered_maps.push_back(aux);
+	}
+	return centered_maps;
+}
+
+
+
+std::vector<uint8_t *> MapsCenterWeightNormalized(uint8_t *image,int w, int h, std::vector<uint8_t*> maps) {
+	std::vector<uint8_t*> centered_maps_normalized;
+	uint8_t *aux = new uint8_t[w * h];
+	for (int i = 0; i < w * h; i++) {
+		aux[i] = 0;
+		for (int j = 0; j < 4; j++) {
+			aux[i] += maps[j][i];
+		}
+	}
+	for (int i = 0; i < w * h; i++) {
+		printf("%d\n", aux[i]);
+		aux[i] = aux[i] / 4;
+	}
+	centered_maps_normalized.push_back(aux);
+	
+	centered_maps_normalized.push_back(aux);
+	
+	centered_maps_normalized.push_back(aux);
+	
+	centered_maps_normalized.push_back(aux);
+	
+	centered_maps_normalized.push_back(aux);
+	/*uint8_t *grayscaled = GrayScaled(image, w, h);
+	for (std::vector<uint8_t*>::iterator it = maps.begin(); it != maps.end(); it++) {
+		uint8_t *aux = new uint8_t[w * h];
+		uint8_t *currentmap = *it;
+		int mapx = 0;
+		int mapy = 0;
+		for (int y = 0; y <= h-8; y+=8, mapy++) {
+			for (int x = 0; x <= w-8; x+=8,mapx++) {
+				for (int yy = y; yy <= y + 8; yy++) {
+					for (int xx = x; xx <= x + 8; xx++) {
+						aux[yy*w + xx] = currentmap[mapy * 8 + mapx];
+					}
+				}
+			}
+		}
+		centered_maps_normalized.push_back(aux);
+	}*/
+	return centered_maps_normalized;
+}
+
