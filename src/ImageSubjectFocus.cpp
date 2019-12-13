@@ -22,6 +22,8 @@ doubleColor rgbToCielab(color in);
 color guessBackgroundColor(uint8_t* image, int w, int h);
 color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop);
 
+std::vector<double*> maps;
+
 int main(){
 	
 	int x, y, channels;
@@ -29,43 +31,76 @@ int main(){
 
 	color background = guessBackgroundColor(image, x, y);
 	doubleColor backgroundCieColor = rgbToCielab(background);
-	
 
 	int mapWidth = x/4 - 1;
 	int mapHeight = y/4 - 1;
-	double* map1 = new double[mapWidth * mapHeight];
-	double* map2 = new double[mapWidth * mapHeight];
+	double* map;
 
+	///////////
+	// MAP 1
+	///////////
+
+	map = new double[mapWidth * mapHeight];
 	for (int i = 0; i < x - 8; i += 4) {
 		for (int j = 0; j < y - 8; j += 4) {
 			color blockColor = averageBlockColor(image, x, y, i, i+8, j, j+8);
 			doubleColor blockCieColor = rgbToCielab(blockColor);
 
 			double f1 = abs(backgroundCieColor.ls - blockCieColor.ls);
+			map[j/4 * mapWidth + i/4] = f1;
+		}
+	}
+	maps.push_back(map);
+
+	///////////
+	// MAP 2
+	///////////
+
+	map = new double[mapWidth * mapHeight];
+
+	for (int i = 0; i < x - 8; i += 4) {
+		for (int j = 0; j < y - 8; j += 4) {
+			color blockColor = averageBlockColor(image, x, y, i, i+8, j, j+8);
+			doubleColor blockCieColor = rgbToCielab(blockColor);
+
 			double deltaA = blockCieColor.as - backgroundCieColor.as;
 			double deltaB = blockCieColor.bs - backgroundCieColor.bs;
 			double f2 = sqrt((deltaA * deltaA) + (deltaB * deltaB));
-			map1[j/4 * mapWidth + i/4] = f1;
-			map2[j/4 * mapWidth + i/4] = f2;
+			map[j/4 * mapWidth + i/4] = f2;
 		}
 	}
+	maps.push_back(map);
 
-	double max1 = *std::max_element(map1, map1 + (mapWidth*mapHeight));
-	double max2 = *std::max_element(map2, map2 + (mapWidth*mapHeight));
+	////////////////////////////////////////
+	// Normalize, write and dealloc maps
+	////////////////////////////////////////
 
-	uint8_t* charMap1 = new uint8_t[mapWidth * mapHeight];
-	uint8_t* charMap2 = new uint8_t[mapWidth * mapHeight];
-	for (int i = 0; i < mapWidth * mapHeight; ++i) {
-		charMap1[i] = (uint8_t)round((map1[i] / max1) * UINT8_MAX);
-		charMap2[i] = (uint8_t)round((map2[i] / max2) * UINT8_MAX);
+	int mapIndex = 0;
+
+	while (!maps.empty()) {
+
+		double* map = maps.back();
+		maps.pop_back();
+
+		double max = *std::max_element(map, map + (mapWidth*mapHeight));
+
+		uint8_t* charMap = new uint8_t[mapWidth * mapHeight];
+
+		for (int i = 0; i < mapWidth * mapHeight; ++i) {
+			charMap[i] = (uint8_t)round((map[i] / max) * UINT8_MAX);
+		}
+
+		std::string mapPath = "temp/map";
+		mapPath += std::to_string(mapIndex);
+		mapPath += std::string(".png");
+
+		stbi_write_png(mapPath.c_str(), mapWidth, mapHeight, 1, charMap, 0);
+
+		delete[] map;
+		delete[] charMap;
 	}
-
-	stbi_write_png("temp/map3.png", mapWidth, mapHeight, 1, charMap1, 0);
-	stbi_write_png("temp/map4.png", mapWidth, mapHeight, 1, charMap2, 0);
-
+	
 	stbi_image_free(image);
-	delete[] map1;
-	delete[] charMap1;
 	std::cout << "The horse is in the house!" << std::endl;
 	return 0;
 }
@@ -116,7 +151,7 @@ color doubleColorToColor(doubleColor in) {
 double linearizeColorComponent(double color) {
 	double col = color;
 
-	if (col > 0.04045) {
+	if (col <= 0.04045) {
 		col /= 12.92;
 	} else {
 		col = pow((col + 0.055)/1.055, 2.4);

@@ -4,6 +4,8 @@
 #include <numeric>
 #include <cmath>
 #include <algorithm>
+#include <string>
+#include <cstring>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
