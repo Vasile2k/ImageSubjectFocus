@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <string>
 #include <cstring>
+#include <cassert>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

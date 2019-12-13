@@ -36,9 +36,9 @@ int main(){
 	int mapHeight = y/4 - 1;
 	double* map;
 
-	///////////
-	// MAP 1
-	///////////
+	/////////////////////////////////
+	// MAP 1 - lightness distance
+	/////////////////////////////////
 
 	map = new double[mapWidth * mapHeight];
 	for (int i = 0; i < x - 8; i += 4) {
@@ -52,9 +52,9 @@ int main(){
 	}
 	maps.push_back(map);
 
-	///////////
-	// MAP 2
-	///////////
+	/////////////////////////////////
+	// MAP 2 - color distance
+	/////////////////////////////////
 
 	map = new double[mapWidth * mapHeight];
 
@@ -67,6 +67,55 @@ int main(){
 			double deltaB = blockCieColor.bs - backgroundCieColor.bs;
 			double f2 = sqrt((deltaA * deltaA) + (deltaB * deltaB));
 			map[j/4 * mapWidth + i/4] = f2;
+		}
+	}
+	maps.push_back(map);
+
+	/////////////////////////////////
+	// MAP 3 - contrast
+	/////////////////////////////////
+
+	map = new double[mapWidth * mapHeight];
+
+	for (int i = 0; i < x - 8; i += 4) {
+		for (int j = 0; j < y - 8; j += 4) {
+
+			double l[64];
+			int lIndex = 0;
+			for (int xx = 0; xx < 8; ++xx) {
+				for (int yy = 0; yy < 8; ++yy) {
+
+					int pixelIndex = (j+yy)*x + (i+xx);
+					double rr = (double)image[3*pixelIndex] / UINT8_MAX;
+					double gg = (double)image[3*pixelIndex + 1] / UINT8_MAX;
+					double bb = (double)image[3*pixelIndex + 2] / UINT8_MAX;
+
+					double grayscaleRms = rr * 0.299 + gg * 0.587 + bb * 0.114;
+
+					const double _b = 0.7297;
+					const double _k = 0.037644;
+					const double _gamma = 2.2;
+
+					double lum = std::pow(_b + _k * grayscaleRms, _gamma);
+
+					l[lIndex++] = lum;
+				}
+			}
+
+			assert(lIndex == 64);
+
+			double mean = std::accumulate(l, l + 64, 0.0)/64;
+			double dispersion = 0.0;
+
+			for (int i = 0; i < 64; ++i) {
+				dispersion += (mean - l[i])*(mean - l[i]);
+			}
+
+			dispersion /= 64;
+			// TODO: here you may also need to sqrt the dispersion
+			// Whothe fuck knows what is standard deviation
+
+			map[j/4 * mapWidth + i/4] = (mean > 0) ? dispersion/mean : 0;
 		}
 	}
 	maps.push_back(map);
