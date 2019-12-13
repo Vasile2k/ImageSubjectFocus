@@ -77,10 +77,7 @@ int main(){
 
 	int mapIndex = 0;
 
-	while (!maps.empty()) {
-
-		double* map = maps.back();
-		maps.pop_back();
+	for (auto& map: maps) {
 
 		double max = *std::max_element(map, map + (mapWidth*mapHeight));
 
@@ -91,7 +88,7 @@ int main(){
 		}
 
 		std::string mapPath = "temp/map";
-		mapPath += std::to_string(mapIndex);
+		mapPath += std::to_string(mapIndex++);
 		mapPath += std::string(".png");
 
 		stbi_write_png(mapPath.c_str(), mapWidth, mapHeight, 1, charMap, 0);
