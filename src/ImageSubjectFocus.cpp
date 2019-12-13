@@ -113,7 +113,7 @@ int main(){
 
 			dispersion /= 64;
 			// TODO: here you may also need to sqrt the dispersion
-			// Whothe fuck knows what is standard deviation
+			// Who the fuck knows what is standard deviation
 
 			map[j/4 * mapWidth + i/4] = (mean > 0) ? dispersion/mean : 0;
 		}
