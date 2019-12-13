@@ -1,5 +1,5 @@
-#include <iostream>
 #include "pch.h"
+#include <iostream>
 #include <cstdint>
 
 struct color {
@@ -193,7 +193,7 @@ int main(){
 	maps.push_back(map);
 
 	////////////////////////////////////////
-	// Normalize, write and dealloc maps
+	// Normalize, write and deallocate maps
 	////////////////////////////////////////
 
 	int mapIndex = 0;
