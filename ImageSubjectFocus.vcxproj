@@ -77,6 +77,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)vendor\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -87,6 +88,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\Image.cpp" />
+    <ClCompile Include="src\ImageColor.cpp" />
     <ClCompile Include="src\ImageSubjectFocus.cpp" />
     <ClCompile Include="src\StbiImpl.cpp" />
   </ItemGroup>
@@ -97,6 +99,7 @@
     <ClInclude Include="src\ImageColor.hpp" />
     <ClInclude Include="src\ImageColorSpace.hpp" />
     <ClInclude Include="src\pch.h" />
+    <ClInclude Include="src\Test.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

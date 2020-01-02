@@ -1,6 +1,11 @@
 #include "pch.h"
 #include <iostream>
 #include <cstdint>
+#include <cassert>
+#include "Image.hpp"
+#include "ImageColor.hpp"
+#include "Debugger.hpp"
+#include "Test.hpp"
 
 struct color {
 	uint8_t r, g, b;
@@ -32,8 +37,18 @@ double colorToGrayscale(doubleColor in);
 std::vector<double*> maps;
 
 int main(){
-	
-	int x, y, channels;
+
+	isf::Image test1("test/test01.jpg");
+
+	isf::Image test2 = test1;
+
+	test2.rgbAt<isf::ImageU8Color>(15, 25) = {255, 0, 0};
+
+	isf::Image test3(isf::ImageColorSpace::COLORSPACE_DOUBLE_RGB, 12, 300);
+
+	test2.saveToFile("temp/temptest02.png");
+
+	/**int x, y, channels;
 	uint8_t* image = stbi_load("test/test02.jpg", &x, &y, &channels, 0);
 
 	color background = guessBackgroundColor(image, x, y);
@@ -218,7 +233,7 @@ int main(){
 		delete[] charMap;
 	}
 	
-	stbi_image_free(image);
+	stbi_image_free(image);*/
 	std::cout << "The horse is in the house!" << std::endl;
 	return 0;
 }

@@ -3,11 +3,18 @@
 
 namespace isf {
 
+// Forward declaration
+union ImageU8Color;
+union ImageDoubleColor;
+
+#pragma pack(push, 1)
 union ImageU8Color {
 	// For RGB colorspace
 	struct {
 		uint8_t r, g, b;
 	};
+
+	ImageDoubleColor toDoubleColor() const;
 };
 
 union ImageDoubleColor {
@@ -27,6 +34,9 @@ union ImageDoubleColor {
 	struct {
 		double val0, val1, val2;
 	};
+
+	ImageU8Color toU8Color() const;
 };
+#pragma pack(pop)
 
 }
