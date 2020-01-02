@@ -88,8 +88,11 @@
   <ItemGroup>
     <ClCompile Include="src\Image.cpp" />
     <ClCompile Include="src\ImageSubjectFocus.cpp" />
+    <ClCompile Include="src\StbiImpl.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Allocator.hpp" />
+    <ClInclude Include="src\Debugger.hpp" />
     <ClInclude Include="src\Image.hpp" />
     <ClInclude Include="src\ImageColor.hpp" />
     <ClInclude Include="src\ImageColorSpace.hpp" />
