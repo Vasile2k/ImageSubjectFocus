@@ -86,9 +86,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Image.cpp" />
     <ClCompile Include="src\ImageSubjectFocus.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Image.hpp" />
+    <ClInclude Include="src\ImageColor.hpp" />
+    <ClInclude Include="src\ImageColorSpace.hpp" />
     <ClInclude Include="src\pch.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
