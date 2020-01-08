@@ -6,13 +6,19 @@
 #include <climits>
 #include <iostream>
 
+template<class T>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
+	ISF_ASSERT(!(hi < lo), "Invalid clamp call");
+	return (v < lo) ? lo : (hi < v) ? hi : v;
+}
+
 isf::Application::Application() {
 
 }
 
 int isf::Application::run() {
 
-	isf::Image test("test/test03.jpg");
+	isf::Image test("test/test02.jpg");
 
 	auto maps = computeAllMaps(test);
 
@@ -48,6 +54,10 @@ int isf::Application::run() {
 	auto subjectMap = thresholdBaselineMap(stage2Map, 2.0);
 
 	saveMapsToFile({ subjectMap }, "finalSubjectMap");
+
+	auto fx = addFxToSubject(test, subjectMap);
+
+	saveMapsToFile({ fx }, "focused");
 
 	return 0;
 }
@@ -341,7 +351,7 @@ isf::Image isf::Application::computeBaselineMap(std::vector<Image>& maps, std::v
 
 	double weights[] = { 1.0, 2.0/3, 1.0/3 };
 	// no indexOf function so let's do it the dirty way
-	int indices[] = {
+	int64_t indices[] = {
 		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[0])),
 		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[1])),
 		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[2])),
@@ -429,7 +439,7 @@ isf::Image isf::Application::computeStage2Map(std::vector<Image>& maps, std::vec
 	std::nth_element(sorted.begin() + 1, sorted.begin() + 1, sorted.end());
 	std::nth_element(sorted.begin() + 2, sorted.begin() + 4, sorted.end());
 
-	int indices[] = {
+	int64_t indices[] = {
 		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[0])),
 		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[1])),
 	};
@@ -452,6 +462,92 @@ isf::Image isf::Application::computeStage2Map(std::vector<Image>& maps, std::vec
 	normalizeCenterWeightedMaps(baselineContainer);
 
 	return baselineContainer[0];
+}
+
+isf::Image isf::Application::addFxToSubject(Image& input, Image& subjectMask) {
+	Image bigMaskBlurred(ImageColorSpace::COLORSPACE_DOUBLE_GRAYSCALE, input.getWidth(), input.getHeight());
+
+	// Make a blurry mask for smooth transition
+	for (int x = 0; x < bigMaskBlurred.getWidth(); ++x) {
+		for (int y = 0; y < bigMaskBlurred.getHeight(); ++y) {
+			// kernel size of 5x5
+			double sum = 0;
+			for (int i = x - 2; i <= x + 2; ++i) {
+				for (int j = y - 2; j <= y + 2; ++j) {
+					int xx = clamp(i/4, 0, (int)subjectMask.getWidth() - 1);
+					int yy = clamp(j/4, 0, (int)subjectMask.getHeight() - 1);
+					sum += subjectMask.grayscaleAt<double>(xx, yy);
+				}
+			}
+			bigMaskBlurred.grayscaleAt<double>(x, y) = sum/25.0;
+		}
+	}
+
+	Image subjectBlurred(ImageColorSpace::COLORSPACE_U8_RGB, input.getWidth(), input.getHeight());
+	// Make a blurry image for the background
+	// Can be optimized to blur only background but who gives a shit?
+	for (int x = 0; x < subjectBlurred.getWidth(); ++x) {
+		for (int y = 0; y < subjectBlurred.getHeight(); ++y) {
+			// kernel size of 7x7
+			int ks = 7; // ks for kernelSize
+			ImageDoubleColor col = { 0 };
+			for (int i = x - ks/2; i <= x + ks/2; ++i) {
+				for (int j = y - ks/2; j <= y + ks/2; ++j) {
+					int xx = clamp(i, 0, (int)input.getWidth() - 1);
+					int yy = clamp(j, 0, (int)input.getHeight() - 1);
+					auto color = input.rgbAt<ImageU8Color>(xx, yy).toDoubleColor();
+					// Remember when you were to lazy to overload operators?
+					col.r += color.r;
+					col.g += color.g;
+					col.b += color.b;
+				}
+			}
+			col.r /= ks*ks;
+			col.g /= ks*ks;
+			col.b /= ks*ks;
+
+			subjectBlurred.rgbAt<ImageU8Color>(x, y) = col.toU8Color();
+		}
+	}
+
+	// Now interpolate the original subject into the blurred picture
+	for (int x = 0; x < subjectBlurred.getWidth(); ++x) {
+		for (int y = 0; y < subjectBlurred.getHeight(); ++y) {
+
+			double desaturationFactor = 0.4;
+
+			if (bigMaskBlurred.grayscaleAt<double>(x, y) > 0) {
+				auto t = bigMaskBlurred.grayscaleAt<double>(x, y);
+
+				auto col = subjectBlurred.rgbAt<ImageU8Color>(x, y).toDoubleColor();
+				auto scol = input.rgbAt<ImageU8Color>(x, y).toDoubleColor();
+				
+				// desaturate the color
+				double average = (col.r + col.g + col.b)/3;
+				col.r = average * desaturationFactor + col.r * (1 - desaturationFactor);
+				col.g = average * desaturationFactor + col.g * (1 - desaturationFactor);
+				col.b = average * desaturationFactor + col.b * (1 - desaturationFactor);
+
+				ImageDoubleColor interpolatedColor = {
+					t * scol.r + (1-t) * col.r,
+					t * scol.g + (1-t) * col.g,
+					t * scol.b + (1-t) * col.b,
+				};
+
+				subjectBlurred.rgbAt<ImageU8Color>(x, y) = interpolatedColor.toU8Color();
+			} else {
+				auto col = subjectBlurred.rgbAt<ImageU8Color>(x, y).toDoubleColor();
+				// just desaturate the color
+				double average = (col.r + col.g + col.b)/3;
+				col.r = average * desaturationFactor + col.r * (1 - desaturationFactor);
+				col.g = average * desaturationFactor + col.g * (1 - desaturationFactor);
+				col.b = average * desaturationFactor + col.b * (1 - desaturationFactor);
+				subjectBlurred.rgbAt<ImageU8Color>(x, y) = col.toU8Color();
+			}
+		}
+	}
+
+	return subjectBlurred;
 }
 
 void isf::Application::saveMapsToFile(std::vector<Image> maps, std::string name) {

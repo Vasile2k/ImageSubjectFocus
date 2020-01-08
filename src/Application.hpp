@@ -34,6 +34,8 @@ protected:
 
 	Image computeStage2Map(std::vector<Image>& maps, std::vector<double>& clusterDensities);
 
+	Image addFxToSubject(Image& input, Image& subjectMask);
+
 	void saveMapsToFile(std::vector<Image> maps, std::string name = "feature");
 
 };
