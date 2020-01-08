@@ -27,6 +27,9 @@ protected:
 
 	std::vector<double> computeClusterDensities(std::vector<Image>& maps);
 
+	Image computeBaselineMap(std::vector<Image>& maps, std::vector<double>& clusterDensities);
+	Image thresholdBaselineMap(Image& baselineMap);
+
 	void saveMapsToFile(std::vector<Image> maps, std::string name = "feature");
 
 };

@@ -30,6 +30,14 @@ int isf::Application::run() {
 
 	saveMapsToFile(maps, "featureNorm");
 
+	auto baselineMap = computeBaselineMap(maps, clusterDensities);
+
+	saveMapsToFile({ baselineMap }, "baselineMap");
+
+	auto thresholdedBaselineMap = thresholdBaselineMap(baselineMap);
+
+	saveMapsToFile({ thresholdedBaselineMap }, "thresholdedBaselineMap");
+
 	return 0;
 }
 
@@ -311,6 +319,61 @@ std::vector<double> isf::Application::computeClusterDensities(std::vector<Image>
 	}
 
 	return results;
+}
+
+isf::Image isf::Application::computeBaselineMap(std::vector<Image>& maps, std::vector<double>& clusterDensities) {
+	std::vector<double> sorted = clusterDensities;
+	// Sort only first 3 values 'cause that's what I care about
+	std::nth_element(sorted.begin(), sorted.begin(), sorted.end());
+	std::nth_element(sorted.begin() + 1, sorted.begin() + 1, sorted.end());
+	std::nth_element(sorted.begin() + 2, sorted.begin() + 2, sorted.end());
+
+	double weights[] = { 1.0, 2.0/3, 1.0/3 };
+	// no indexOf function so let's do it the dirty way
+	int indices[] = {
+		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[0])),
+		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[1])),
+		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[2])),
+	};
+
+	Image baseline(ImageColorSpace::COLORSPACE_DOUBLE_UNNORMALIZED, maps[0].getWidth(), maps[0].getHeight());
+
+	for (int x = 0; x < baseline.getWidth(); x++) {
+		for (int y = 0; y < baseline.getHeight(); y++) {
+			baseline.grayscaleAt<double>(x, y) =
+				(maps[indices[0]].grayscaleAt<double>(x, y) * weights[0] +
+				maps[indices[1]].grayscaleAt<double>(x, y) * weights[1] +
+				maps[indices[2]].grayscaleAt<double>(x, y) * weights[2])/
+				 (weights[0] + weights[1] + weights[2]);
+		}
+	}
+
+	std::vector<Image> baselineContainer = { baseline };
+	normalizeCenterWeightedMaps(baselineContainer);
+
+	return baselineContainer[0];
+}
+
+isf::Image isf::Application::thresholdBaselineMap(Image& baselineMap) {
+	double sum = 0;
+
+	for (int x = 0; x < baselineMap.getWidth(); x++) {
+		for (int y = 0; y < baselineMap.getHeight(); y++) {
+			sum += baselineMap.grayscaleAt<double>(x, y);
+		}
+	}
+
+	double mean = sum/(baselineMap.getWidth() * baselineMap.getHeight());
+	double threshold = 1.5 * mean;
+
+	Image thresholdedMap(ImageColorSpace::COLORSPACE_DOUBLE_GRAYSCALE, baselineMap.getWidth(), baselineMap.getHeight());
+
+	for (int x = 0; x < baselineMap.getWidth(); x++) {
+		for (int y = 0; y < baselineMap.getHeight(); y++) {
+			thresholdedMap.grayscaleAt<double>(x, y) = baselineMap.grayscaleAt<double>(x, y) >= threshold ? 1.0 : 0.0;
+		}
+	}
+	return thresholdedMap;
 }
 
 void isf::Application::saveMapsToFile(std::vector<Image> maps, std::string name) {
