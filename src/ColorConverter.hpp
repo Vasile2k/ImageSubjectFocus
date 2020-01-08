@@ -8,7 +8,7 @@ class ColorConverter final {
 
 public:
 	static ImageU8Color averageBlockColor(Image& image, int xStart, int xStop, int yStart, int yStop);
-	static ImageU8Color guessBackgroundColor(Image& image);
+	static ImageU8Color guessBackgroundColor(Image& image, Image* subjectMask = nullptr);
 	static ImageDoubleColor colorToDoubleColor(ImageU8Color in);
 	static ImageU8Color doubleColorToColor(ImageDoubleColor in);
 	static double linearizeColorComponent(double color);

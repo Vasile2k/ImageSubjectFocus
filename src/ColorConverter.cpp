@@ -21,7 +21,7 @@ isf::ImageU8Color isf::ColorConverter::averageBlockColor(Image& image, int xStar
 	return { (uint8_t)(rr/(count)), (uint8_t)(gg/(count)), (uint8_t)(bb/(count)) };
 }
 
-isf::ImageU8Color isf::ColorConverter::guessBackgroundColor(Image& image) {
+isf::ImageU8Color isf::ColorConverter::guessBackgroundColor(Image& image, Image* subjectMask) {
 	uint64_t rr = 0;
 	uint64_t gg = 0;
 	uint64_t bb = 0;
@@ -29,8 +29,16 @@ isf::ImageU8Color isf::ColorConverter::guessBackgroundColor(Image& image) {
 	// May not necessary be width * height, if computed only for region
 	uint64_t wh = 0;
 
+	int scaleFactor = 0;
+	if (subjectMask) {
+		scaleFactor = image.getWidth() / subjectMask->getWidth();
+	}
+
 	for (int x = 0; x < image.getWidth(); ++x) {
 		for (int y = 0; y < image.getHeight(); ++y) {
+			if (subjectMask && subjectMask->grayscaleAt<double>(x/scaleFactor, y/scaleFactor)) {
+				continue;
+			}
 			auto color = image.rgbAt<ImageU8Color>(x, y);
 			rr += color.r;
 			gg += color.g;
@@ -43,11 +51,11 @@ isf::ImageU8Color isf::ColorConverter::guessBackgroundColor(Image& image) {
 }
 
 isf::ImageDoubleColor isf::ColorConverter::colorToDoubleColor(ImageU8Color in) {
-	return { (double)in.r/UINT8_MAX, (double)in.g/UINT8_MAX, (double)in.b/UINT8_MAX };
+	return in.toDoubleColor();
 }
 
 isf::ImageU8Color isf::ColorConverter::doubleColorToColor(ImageDoubleColor in) {
-	return { (uint8_t)round(in.r*UINT8_MAX), (uint8_t)round(in.g*UINT8_MAX), (uint8_t)round(in.b*UINT8_MAX) };
+	return in.toU8Color();
 }
 
 double isf::ColorConverter::linearizeColorComponent(double color) {

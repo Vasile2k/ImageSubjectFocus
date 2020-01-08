@@ -38,6 +38,17 @@ int isf::Application::run() {
 
 	saveMapsToFile({ thresholdedBaselineMap }, "thresholdedBaselineMap");
 
+	auto stage2Maps = computeAndRefineStage2Maps(test, thresholdedBaselineMap);
+
+	saveMapsToFile(stage2Maps, "stage2Maps");
+
+	auto stage2Clusters = computeClusterDensities(stage2Maps);
+	auto stage2Map = computeStage2Map(stage2Maps, stage2Clusters);
+
+	auto subjectMap = thresholdBaselineMap(stage2Map, 2.0);
+
+	saveMapsToFile({ subjectMap }, "finalSubjectMap");
+
 	return 0;
 }
 
@@ -53,11 +64,11 @@ std::vector<isf::Image> isf::Application::computeAllMaps(Image& input) {
 	return result;
 }
 
-isf::Image isf::Application::computeLightnessDistanceMap(Image& input) {
+isf::Image isf::Application::computeLightnessDistanceMap(Image& input, Image* subjectMask) {
 	size_t mapWidth = input.getWidth()/4 - 1;
 	size_t mapHeight = input.getHeight()/4 - 1;
 
-	ImageU8Color background = ColorConverter::guessBackgroundColor(input);
+	ImageU8Color background = ColorConverter::guessBackgroundColor(input, subjectMask);
 	ImageDoubleColor backgroundCieColor = ColorConverter::rgbToCielab(background);
 
 	Image map(ImageColorSpace::COLORSPACE_DOUBLE_UNNORMALIZED, mapWidth, mapHeight);
@@ -73,11 +84,11 @@ isf::Image isf::Application::computeLightnessDistanceMap(Image& input) {
 	return map;
 }
 
-isf::Image isf::Application::computeColorDistanceMap(Image& input) {
+isf::Image isf::Application::computeColorDistanceMap(Image& input, Image* subjectMask) {
 	size_t mapWidth = input.getWidth()/4 - 1;
 	size_t mapHeight = input.getHeight()/4 - 1;
 
-	ImageU8Color background = ColorConverter::guessBackgroundColor(input);
+	ImageU8Color background = ColorConverter::guessBackgroundColor(input, subjectMask);
 	ImageDoubleColor backgroundCieColor = ColorConverter::rgbToCielab(background);
 
 	Image map(ImageColorSpace::COLORSPACE_DOUBLE_UNNORMALIZED, mapWidth, mapHeight);
@@ -216,7 +227,7 @@ isf::Image isf::Application::computeEdgeStrengthMap(Image& input) {
 					uint16_t roberts1 = (pixel0.r + pixel0.g + pixel0.b) - (pixel2.r + pixel2.g + pixel2.b);
 					uint16_t roberts2 = (pixel1.r + pixel1.g + pixel1.b) - (pixel3.r + pixel3.g + pixel3.b);
 
-					robertsValues.push_back(std::sqrt(double(((uint32_t)roberts1*roberts1) + ((uint32_t)roberts1*roberts2)))/3.0);
+					robertsValues.push_back(std::sqrt(double(((uint32_t)roberts1*roberts1) + ((uint32_t)roberts2*roberts2)))/3.0);
 				}
 			}
 
@@ -230,11 +241,11 @@ isf::Image isf::Application::computeEdgeStrengthMap(Image& input) {
 	return map;
 }
 
-void isf::Application::centerWeightMaps(std::vector<Image>& maps) {
+void isf::Application::centerWeightMaps(std::vector<Image>& maps, size_t rc, size_t cc) {
 	// column center
-	size_t cc = maps[0].getWidth()/2;
+	cc = cc == -1 ? maps[0].getWidth()/2 : cc;
 	// row center
-	size_t rc = maps[0].getHeight()/2;
+	rc = rc == -1 ? maps[0].getHeight()/2 : rc;
 
 	for (int c = 0; c < maps[0].getWidth(); ++c) {
 		for (int r = 0; r < maps[0].getHeight(); ++r) {
@@ -354,7 +365,7 @@ isf::Image isf::Application::computeBaselineMap(std::vector<Image>& maps, std::v
 	return baselineContainer[0];
 }
 
-isf::Image isf::Application::thresholdBaselineMap(Image& baselineMap) {
+isf::Image isf::Application::thresholdBaselineMap(Image& baselineMap, double thresholdMultiplier) {
 	double sum = 0;
 
 	for (int x = 0; x < baselineMap.getWidth(); x++) {
@@ -364,7 +375,7 @@ isf::Image isf::Application::thresholdBaselineMap(Image& baselineMap) {
 	}
 
 	double mean = sum/(baselineMap.getWidth() * baselineMap.getHeight());
-	double threshold = 1.5 * mean;
+	double threshold = thresholdMultiplier * mean;
 
 	Image thresholdedMap(ImageColorSpace::COLORSPACE_DOUBLE_GRAYSCALE, baselineMap.getWidth(), baselineMap.getHeight());
 
@@ -374,6 +385,73 @@ isf::Image isf::Application::thresholdBaselineMap(Image& baselineMap) {
 		}
 	}
 	return thresholdedMap;
+}
+
+std::vector<isf::Image> isf::Application::computeAndRefineStage2Maps(Image& input, Image& firstGuessSubject) {
+	std::vector<isf::Image> result;
+
+	int card = 0;
+
+	// centroid computation
+	size_t c0 = 0;
+	size_t r0 = 0;
+
+	for (int c = 0; c < firstGuessSubject.getWidth(); ++c) {
+		for (int r = 0; r < firstGuessSubject.getHeight(); ++r) {
+			if (firstGuessSubject.grayscaleAt<double>(c, r)) {
+				c0 += c;
+				r0 += r;
+				++card;
+			}
+		}
+	}
+
+	c0 /= card;
+	r0 /= card;
+
+	result.push_back(computeLightnessDistanceMap(input, &firstGuessSubject));
+	result.push_back(computeColorDistanceMap(input, &firstGuessSubject));
+	result.push_back(computeContrastMap(input));
+	result.push_back(computeSharpnessMap(input));
+	result.push_back(computeEdgeStrengthMap(input));
+
+	centerWeightMaps(result, r0, c0);
+
+	normalizeCenterWeightedMaps(result);
+
+	return result;
+}
+
+isf::Image isf::Application::computeStage2Map(std::vector<Image>& maps, std::vector<double>& clusterDensities) {
+	std::vector<double> sorted = clusterDensities;
+	// Sort only first 2 values and the last one
+	std::nth_element(sorted.begin(), sorted.begin(), sorted.end());
+	std::nth_element(sorted.begin() + 1, sorted.begin() + 1, sorted.end());
+	std::nth_element(sorted.begin() + 2, sorted.begin() + 4, sorted.end());
+
+	int indices[] = {
+		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[0])),
+		std::distance(clusterDensities.begin(), std::find(clusterDensities.begin(), clusterDensities.end(), sorted[1])),
+	};
+
+	Image baseline(ImageColorSpace::COLORSPACE_DOUBLE_UNNORMALIZED, maps[0].getWidth(), maps[0].getHeight());
+
+	for (int x = 0; x < baseline.getWidth(); x++) {
+		for (int y = 0; y < baseline.getHeight(); y++) {
+
+			double weights[] = { 1.0, (sorted[4] - clusterDensities[indices[1]])/(sorted[4] - sorted[0])};
+
+			baseline.grayscaleAt<double>(x, y) =
+				(maps[indices[0]].grayscaleAt<double>(x, y) * weights[0] +
+				 maps[indices[1]].grayscaleAt<double>(x, y) * weights[1])/
+				 (weights[0] + weights[1]);
+		}
+	}
+
+	std::vector<Image> baselineContainer = { baseline };
+	normalizeCenterWeightedMaps(baselineContainer);
+
+	return baselineContainer[0];
 }
 
 void isf::Application::saveMapsToFile(std::vector<Image> maps, std::string name) {
