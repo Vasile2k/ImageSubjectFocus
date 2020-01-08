@@ -18,11 +18,15 @@ public:
 	Image& operator=(Image&& other) noexcept;
 
 	ImageColorSpace getColorSpace() const;
-	inline size_t getWidth() const;
-	inline size_t getHeight() const;
+	size_t getWidth() const;
+	size_t getHeight() const;
 
 	// PNG only
-	bool saveToFile(const std::string& filename);
+	bool saveToFile(const std::string& filename) const;
+	// To be saved later
+	Image normalizeAndConvertToViewable() const;
+	// Can be written to file?
+	bool isWritableToFile() const;
 
 	template<typename T>
 	inline T& rgbAt(size_t x, size_t y) const;

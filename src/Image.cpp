@@ -81,10 +81,28 @@ size_t isf::Image::getHeight() const {
 	return m_height;
 }
 
-bool isf::Image::saveToFile(const std::string& filename) {
+bool isf::Image::saveToFile(const std::string& filename) const {
 	ISF_ASSERT(m_data != nullptr, "No data to be written");
 	ISF_ASSERT(m_colorSpace.isWritable(), "Can't write double color space to image");
 	return stbi_write_png(filename.c_str(), (int)m_width, (int)m_height, m_colorSpace.getChannels(), m_data, 0);
+}
+
+isf::Image isf::Image::normalizeAndConvertToViewable() const {
+	ISF_ASSERT(m_colorSpace.isDouble(), "Image is already viewable and cannot be normalized");
+	Image normalized(m_colorSpace.getChannels() == 3 ? ImageColorSpace::COLORSPACE_U8_RGB : ImageColorSpace::COLORSPACE_U8_GRAYSCALE, m_width, m_height);
+
+	size_t dataLength = m_width * m_height * m_colorSpace.getChannels();
+	double max = *std::max_element((double*)m_data, (double*)m_data + dataLength);
+
+	for (int i = 0; i < dataLength; ++i) {
+		*((uint8_t*)(normalized.m_data) + i) = (uint8_t)std::round((*((double*)m_data + i) / max) * UINT8_MAX);
+	}
+
+	return normalized;
+}
+
+bool isf::Image::isWritableToFile() const {
+	return m_colorSpace.isWritable();
 }
 
 template<>

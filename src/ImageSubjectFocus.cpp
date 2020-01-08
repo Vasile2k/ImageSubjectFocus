@@ -5,49 +5,13 @@
 #include "Image.hpp"
 #include "ImageColor.hpp"
 #include "Debugger.hpp"
+
+#include "Application.hpp"
 #include "Test.hpp"
-
-struct color {
-	uint8_t r, g, b;
-};
-
-union doubleColor {
-	struct {
-		double r, g, b;
-	};
-	struct {
-		double x, y, z;
-	};
-	struct {
-		double ls, as, bs;
-	};
-};
-
-color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop);
-color guessBackgroundColor(uint8_t* image, int w, int h);
-doubleColor colorToDoubleColor(color in);
-color doubleColorToColor(doubleColor in);
-double linearizeColorComponent(double color);
-doubleColor linearizeRgb(doubleColor in);
-doubleColor rgbToCiexyz(doubleColor in);
-doubleColor ciexyzToCielab(doubleColor in);
-doubleColor rgbToCielab(color in);
-double colorToGrayscale(doubleColor in);
 
 std::vector<double*> maps;
 
 int main(){
-
-	isf::Image test1("test/test01.jpg");
-
-	isf::Image test2 = test1;
-
-	test2.rgbAt<isf::ImageU8Color>(15, 25) = {255, 0, 0};
-
-	isf::Image test3(isf::ImageColorSpace::COLORSPACE_DOUBLE_RGB, 12, 300);
-
-	test2.saveToFile("temp/temptest02.png");
-
 	/**int x, y, channels;
 	uint8_t* image = stbi_load("test/test02.jpg", &x, &y, &channels, 0);
 
@@ -235,98 +199,9 @@ int main(){
 	
 	stbi_image_free(image);*/
 	std::cout << "The horse is in the house!" << std::endl;
-	return 0;
+	return isf::Application().run();
 }
 
-color averageBlockColor(uint8_t* image, int w, int h, int xStart, int xStop, int yStart, int yStop) {
 
-	uint64_t rr = 0;
-	uint64_t gg = 0;
-	uint64_t bb = 0;
 
-	for (int x = xStart; x < xStop; ++x) {
-		for (int y = yStart; y < yStop; ++y) {
-			int i = y*w + x;
-			rr += image[3*i];
-			gg += image[3*i + 1];
-			bb += image[3*i + 2];
-		}
-	}
 
-	int count = (xStop - xStart)*(yStop - yStart);
-
-	return { (uint8_t)(rr/(count)), (uint8_t)(gg/(count)), (uint8_t)(bb/(count)) };
-}
-
-color guessBackgroundColor(uint8_t* image, int w, int h) {
-
-	uint64_t rr = 0;
-	uint64_t gg = 0;
-	uint64_t bb = 0;
-
-	for (int i = 0; i < w*h; ++i) {
-		rr += image[3*i];
-		gg += image[3*i + 1];
-		bb += image[3*i + 2];
-	}
-
-	return { (uint8_t)(rr/(w*h)), (uint8_t)(gg/(w*h)), (uint8_t)(bb/(w*h)) };
-}
-
-doubleColor colorToDoubleColor(color in) {
-	return { (double)in.r/UINT8_MAX, (double)in.g/UINT8_MAX, (double)in.b/UINT8_MAX };
-}
-
-color doubleColorToColor(doubleColor in) {
-	return { (uint8_t)round(in.r*UINT8_MAX), (uint8_t)round(in.g*UINT8_MAX), (uint8_t)round(in.b*UINT8_MAX) };
-}
-
-double linearizeColorComponent(double color) {
-	double col = color;
-
-	if (col <= 0.04045) {
-		col /= 12.92;
-	} else {
-		col = pow((col + 0.055)/1.055, 2.4);
-	}
-
-	return col;
-}
-
-doubleColor linearizeRgb(doubleColor in) {
-	return { linearizeColorComponent(in.r), linearizeColorComponent(in.g), linearizeColorComponent(in.b) };
-}
-
-doubleColor rgbToCiexyz(doubleColor in) {
-	return { 0.412453*in.r + 0.357580*in.g + 0.180423*in.b,
-		0.212671*in.r + 0.715160*in.g + 0.072169*in.b,
-		0.019334*in.r + 0.119193*in.g + 0.950227*in.b };
-}
-
-doubleColor ciexyzToCielab(doubleColor in) {
-	double xr = 0.950456;
-	double yr = 1;
-	double zr = 1.088754;
-
-	auto g = [](double t) {
-		if (t > 0.008856) {
-			return pow(t, 1.0/3);
-		} else {
-			return 7.787*t + 16.0/116;
-		}
-	};
-
-	double l = 116.0 * g(in.y/yr) - 16.0;
-	double a = 500.0 * (g(in.x/xr) - g(in.y/yr));
-	double b = 200.0 * (g(in.y/yr) - g(in.z/zr));
-
-	return { l, a, b };
-}
-
-doubleColor rgbToCielab(color in) {
-	return ciexyzToCielab(rgbToCiexyz(linearizeRgb(colorToDoubleColor(in))));
-}
-
-double colorToGrayscale(doubleColor in) {
-	return in.r * 0.299 + in.g * 0.587 + in.b * 0.114;
-}
