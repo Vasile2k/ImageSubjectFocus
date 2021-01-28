@@ -2,7 +2,7 @@
 
 A little application meant to detect main subject of an image and add depth and focus fx on it.
 
-It's tested on Windows but it should run on Linux too.
+It's tested on Windows but it should run on Linux too. Or not... I used some `msvc` specific stuff. Requires at least C++17.
 
 Only for x64. Why? Because why not...
 

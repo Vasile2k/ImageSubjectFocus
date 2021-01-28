@@ -77,6 +77,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)vendor\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,17 +87,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\Application.cpp" />
+    <ClCompile Include="src\ColorConverter.cpp" />
     <ClCompile Include="src\Image.cpp" />
+    <ClCompile Include="src\ImageColor.cpp" />
     <ClCompile Include="src\ImageSubjectFocus.cpp" />
     <ClCompile Include="src\StbiImpl.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Application.hpp" />
     <ClInclude Include="src\Allocator.hpp" />
+    <ClInclude Include="src\ColorConverter.hpp" />
     <ClInclude Include="src\Debugger.hpp" />
     <ClInclude Include="src\Image.hpp" />
     <ClInclude Include="src\ImageColor.hpp" />
     <ClInclude Include="src\ImageColorSpace.hpp" />
     <ClInclude Include="src\pch.h" />
+    <ClInclude Include="src\Test.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

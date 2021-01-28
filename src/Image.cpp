@@ -20,10 +20,13 @@ isf::Image::Image(const std::string& filename) : m_colorSpace(ImageColorSpace::C
 isf::Image::Image(const Image& other) : Image(other.m_colorSpace, other.m_width, other.m_height) {
 	size_t size = m_width * m_height * m_colorSpace.getSize();
 	m_data = ISF_MALLOC(size);
-	memcpy(m_data, other.m_data, size);
+	ISF_ASSERT(m_data, "Allocation failed");
+	if (m_data) {
+		memcpy(m_data, other.m_data, size);
+	}
 }
 
-isf::Image::Image(Image&& other) : Image(other.m_colorSpace, other.m_width, other.m_height) {
+isf::Image::Image(Image&& other) noexcept : Image(other.m_colorSpace, other.m_width, other.m_height) {
 	m_data = other.m_data;
 	other.m_data = nullptr;
 }
@@ -44,11 +47,15 @@ isf::Image& isf::Image::operator=(const Image& other) {
 		m_height = other.m_height;
 		size_t size = m_width * m_height * m_colorSpace.getSize();
 		m_data = ISF_MALLOC(size);
-		memcpy(m_data, other.m_data, size);
+		ISF_ASSERT(m_data, "Allocation failed");
+		if (m_data) {
+			memcpy(m_data, other.m_data, size);
+		}
 	}
+	return *this;
 }
 
-isf::Image& isf::Image::operator=(Image&& other) {
+isf::Image& isf::Image::operator=(Image&& other) noexcept {
 	if (this != &other) {
 		if (m_data) {
 			ISF_FREE(m_data);
@@ -59,6 +66,7 @@ isf::Image& isf::Image::operator=(Image&& other) {
 		m_data = other.m_data;
 		other.m_data = nullptr;
 	}
+	return *this;
 }
 
 isf::ImageColorSpace isf::Image::getColorSpace() const {
@@ -71,4 +79,56 @@ size_t isf::Image::getWidth() const {
 
 size_t isf::Image::getHeight() const {
 	return m_height;
+}
+
+bool isf::Image::saveToFile(const std::string& filename) const {
+	ISF_ASSERT(m_data != nullptr, "No data to be written");
+	ISF_ASSERT(m_colorSpace.isWritable(), "Can't write double color space to image");
+	return stbi_write_png(filename.c_str(), (int)m_width, (int)m_height, m_colorSpace.getChannels(), m_data, 0);
+}
+
+isf::Image isf::Image::normalizeAndConvertToViewable() const {
+	ISF_ASSERT(m_colorSpace.isDouble(), "Image is already viewable and cannot be normalized");
+	Image normalized(m_colorSpace.getChannels() == 3 ? ImageColorSpace::COLORSPACE_U8_RGB : ImageColorSpace::COLORSPACE_U8_GRAYSCALE, m_width, m_height);
+
+	size_t dataLength = m_width * m_height * m_colorSpace.getChannels();
+	double max = *std::max_element((double*)m_data, (double*)m_data + dataLength);
+
+	for (int i = 0; i < dataLength; ++i) {
+		*((uint8_t*)(normalized.m_data) + i) = (uint8_t)std::round((*((double*)m_data + i) / max) * UINT8_MAX);
+	}
+
+	return normalized;
+}
+
+bool isf::Image::isWritableToFile() const {
+	return m_colorSpace.isWritable();
+}
+
+template<>
+isf::ImageU8Color& isf::Image::_rgbAt(size_t x, size_t y) const {
+	ISF_ASSERT(!m_colorSpace.isDouble(), "Data type is not U8");
+	ISF_ASSERT(m_colorSpace.getChannels() == 3, "Image is not RGB");
+	return *(static_cast<ImageU8Color*>(m_data) + y * m_width + x);
+}
+
+template<>
+isf::ImageDoubleColor& isf::Image::_rgbAt(size_t x, size_t y) const {
+	ISF_ASSERT(m_colorSpace.isDouble(), "Data type is not double");
+	ISF_ASSERT(m_colorSpace.getChannels() == 3, "Image is not RGB");
+	return *(static_cast<ImageDoubleColor*>(m_data) + y * m_width + x);
+}
+
+template<>
+uint8_t& isf::Image::_grayscaleAt(size_t x, size_t y) const {
+	ISF_ASSERT(!m_colorSpace.isDouble(), "Data type is not U8");
+	ISF_ASSERT(m_colorSpace.getChannels() == 1, "Image is not grayscale");
+	return *(static_cast<uint8_t*>(m_data) + y * m_width + x);
+}
+
+template<>
+double& isf::Image::_grayscaleAt(size_t x, size_t y) const {
+	ISF_ASSERT(m_colorSpace.isDouble(), "Data type is not double");
+	ISF_ASSERT(m_colorSpace.getChannels() == 1, "Image is not grayscale");
+	return *(static_cast<double*>(m_data) + y * m_width + x);
 }
