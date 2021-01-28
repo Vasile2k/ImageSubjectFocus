@@ -6,6 +6,9 @@ It's tested on Windows but it should run on Linux too.
 
 Only for x64. Why? Because why not...
 
+![Foc](preview/foc.jpg)
+![Focus](preview/focus.png)
+
 ## Prerequisities
 
  * Sometin' able to compile C++17
